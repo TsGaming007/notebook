@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Infinite Whiteboard Notes</title>
+  <link rel="preconnect" href="https://api.fontshare.com" />
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
+  <style>
+    :root, [data-theme="light"] {
+      --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+      --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --radius-sm: 0.375rem;
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+      --radius-xl: 1rem;
+      --radius-full: 9999px;
+      --color-bg: #f7f6f2;
+      --color-surface: #f9f8f5;
+      --color-surface-2: #fbfbf9;
+      --color-surface-offset: #edeae5;
+      --color-border: #d4d1ca;
+      --color-divider: #dcd9d5;
+      --color-text: #28251d;
+      --color-text-muted: #7a7974;
+      --color-text-inverse: #f9f8f4;
+      --color-primary: #01696f;
+      --color-primary-highlight: #cedcd8;
+      --shadow-sm: 0 1px 2px oklch(0.2 0.01 80 / 0.06);
+      --shadow-md: 0 10px 28px oklch(0.2 0.01 80 / 0.10);
+      --shadow-lg: 0 18px 44px oklch(0.2 0.01 80 / 0.14);
+      --font-body: 'Satoshi', 'Inter', sans-serif;
+      --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+      --note-yellow: #fff0a8;
+      --note-pink: #ffd1df;
+      --note-blue: #cfe8ff;
+      --note-green: #d5f3d2;
+      --note-lilac: #e7dbff;
+    }
+    [data-theme="dark"] {
+      --color-bg: #171614;
+      --color-surface: #1c1b19;
+      --color-surface-2: #201f1d;
+      --color-surface-offset: #22211f;
+      --color-border: #393836;
+      --color-divider: #262523;
+      --color-text: #e2e0dc;
+      --color-text-muted: #9d9b97;
+      --color-text-inverse: #171614;
+      --color-primary: #4f98a3;
+      --color-primary-highlight: #313b3b;
+      --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+      --shadow-md: 0 10px 28px oklch(0 0 0 / 0.35);
+      --shadow-lg: 0 18px 44px oklch(0 0 0 / 0.45);
+      --note-yellow: #8d7b28;
+      --note-pink: #8a4960;
+      --note-blue: #365a84;
+      --note-green: #3c6d3b;
+      --note-lilac: #665189;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    html { -webkit-text-size-adjust: none; text-size-adjust: none; }
+    body {
+      min-height: 100dvh;
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      color: var(--color-text);
+      background: radial-gradient(circle at top left, color-mix(in oklab, var(--color-primary) 6%, var(--color-bg)), var(--color-bg) 34%);
+      overflow: hidden;
+    }
+    button, input, textarea { font: inherit; color: inherit; }
+    button {
+      cursor: pointer;
+      border: 0;
+      background: none;
+      transition: transform var(--transition-interactive), background var(--transition-interactive), color var(--transition-interactive), box-shadow var(--transition-interactive), border-color var(--transition-interactive);
+    }
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100dvh;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      align-items: center;
+      padding: var(--space-4);
+      background: color-mix(in oklab, var(--color-surface) 88%, transparent);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid color-mix(in oklab, var(--color-text) 12%, transparent);
+      box-shadow: var(--shadow-sm);
+      z-index: 20;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-right: auto;
+      min-width: 12rem;
+    }
+    .brand-logo {
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: var(--radius-md);
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--color-primary-highlight), color-mix(in oklab, var(--color-primary) 25%, var(--color-surface-2)));
+      color: var(--color-primary);
+    }
+    .brand-text strong { display: block; font-size: var(--text-sm); line-height: 1.1; }
+    .brand-text span { display: block; font-size: var(--text-xs); color: var(--color-text-muted); }
+    .controls { display: flex; flex-wrap: wrap; gap: var(--space-3); width: 100%; }
+    .group {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2);
+      background: var(--color-surface-2);
+      border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+      max-width: 100%;
+    }
+    .tool-btn, .action-btn, .theme-btn {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-md);
+      white-space: nowrap;
+    }
+    .tool-btn.active, .action-btn.primary {
+      background: var(--color-primary);
+      color: var(--color-text-inverse);
+      box-shadow: var(--shadow-sm);
+    }
+    .action-btn, .theme-btn {
+      background: var(--color-surface);
+      border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
+    }
+    .swatch, .note-swatch {
+      width: 2rem;
+      height: 2rem;
+      flex: 0 0 auto;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+    }
+    .swatch { border-radius: 50%; border: 2px solid transparent; }
+    .note-swatch { border-radius: var(--radius-md); }
+    .swatch.active, .note-swatch.active { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+    .range-wrap { display: flex; align-items: center; gap: var(--space-2); padding-inline: var(--space-2); }
+    .range-wrap span { font-size: var(--text-xs); color: var(--color-text-muted); white-space: nowrap; }
+    input[type="range"] { width: 8rem; accent-color: var(--color-primary); }
+
+    .stage { position: relative; min-height: 0; }
+    .viewport {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      touch-action: none;
+      background:
+        linear-gradient(var(--color-divider) 1px, transparent 1px),
+        linear-gradient(90deg, var(--color-divider) 1px, transparent 1px),
+        var(--color-surface);
+      background-size: 28px 28px, 28px 28px, auto;
+    }
+    .board {
+      position: absolute;
+      inset: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    .notes-layer, .canvas-wrap, #boardCanvas {
+      position: absolute;
+      inset: 0;
+    }
+    #boardCanvas { display: block; width: 100%; height: 100%; }
+    .notes-layer { pointer-events: none; }
+
+    .note {
+      position: absolute;
+      width: 260px;
+      min-height: 170px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      border-radius: var(--radius-xl);
+      border: 1px solid color-mix(in oklab, var(--color-text) 12%, transparent);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      pointer-events: auto;
+      user-select: none;
+    }
+    .note.selected { box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 45%, transparent), var(--shadow-lg); }
+    .note-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: color-mix(in oklab, #000 4%, transparent);
+      cursor: grab;
+      touch-action: none;
+    }
+    .note-title { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; opacity: .76; }
+    .note-delete { min-width: 1.9rem; min-height: 1.9rem; border-radius: var(--radius-full); }
+    .note-body {
+      width: 100%;
+      min-height: 120px;
+      resize: none;
+      border: 0;
+      background: transparent;
+      outline: none;
+      padding: var(--space-3);
+      line-height: 1.45;
+    }
+    .note-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-2) var(--space-3);
+      font-size: var(--text-xs);
+      background: color-mix(in oklab, #fff 8%, transparent);
+    }
+    .resize-handle {
+      width: 1rem;
+      height: 1rem;
+      border-radius: var(--radius-sm);
+      background: color-mix(in oklab, currentColor 18%, transparent);
+      cursor: nwse-resize;
+      touch-action: none;
+    }
+
+    .hud {
+      position: absolute;
+      right: var(--space-4);
+      bottom: var(--space-4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: color-mix(in oklab, var(--color-surface-2) 92%, transparent);
+      border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
+      border-radius: var(--radius-full);
+      box-shadow: var(--shadow-sm);
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      pointer-events: none;
+      z-index: 25;
+    }
+    .kbd {
+      padding: 0.1rem 0.45rem;
+      border-radius: var(--radius-sm);
+      background: var(--color-surface-offset);
+      color: var(--color-text);
+      border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
+    }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+
+    @media (max-width: 980px) {
+      .brand { width: 100%; margin-right: 0; }
+      .controls { width: 100%; }
+      .group { width: 100%; }
+      .hud { left: var(--space-4); right: auto; max-width: calc(100% - 2rem); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="toolbar">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3.5" y="4" width="17" height="12.5" rx="2.5"></rect>
+            <path d="M7 20h10"></path>
+            <path d="M12 16.5V20"></path>
+            <path d="M8 8.5h8"></path>
+            <path d="M8 11.5h5"></path>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <strong>Infinite Whiteboard</strong>
+          <span>Touch-friendly board with pan, zoom, drawing, and notes.</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="group" role="toolbar" aria-label="Tools">
+          <button class="tool-btn active" data-tool="pen" aria-pressed="true">Pen</button>
+          <button class="tool-btn" data-tool="eraser" aria-pressed="false">Erase</button>
+          <button class="tool-btn" data-tool="note" aria-pressed="false">Note</button>
+          <button class="tool-btn" data-tool="pan" aria-pressed="false">Pan</button>
+        </div>
+
+        <div class="group" role="toolbar" aria-label="Pen colors">
+          <button class="swatch active" data-color="#111111" style="background:#111111" aria-label="Black pen"></button>
+          <button class="swatch" data-color="#01696f" style="background:#01696f" aria-label="Teal pen"></button>
+          <button class="swatch" data-color="#006494" style="background:#006494" aria-label="Blue pen"></button>
+          <button class="swatch" data-color="#964219" style="background:#964219" aria-label="Brown pen"></button>
+          <button class="swatch" data-color="#a13544" style="background:#a13544" aria-label="Red pen"></button>
+          <button class="swatch" data-color="#437a22" style="background:#437a22" aria-label="Green pen"></button>
+        </div>
+
+        <div class="group" role="toolbar" aria-label="Note colors">
+          <button class="note-swatch active" data-note-color="var(--note-yellow)" style="background:var(--note-yellow)" aria-label="Yellow note"></button>
+          <button class="note-swatch" data-note-color="var(--note-pink)" style="background:var(--note-pink)" aria-label="Pink note"></button>
+          <button class="note-swatch" data-note-color="var(--note-blue)" style="background:var(--note-blue)" aria-label="Blue note"></button>
+          <button class="note-swatch" data-note-color="var(--note-green)" style="background:var(--note-green)" aria-label="Green note"></button>
+          <button class="note-swatch" data-note-color="var(--note-lilac)" style="background:var(--note-lilac)" aria-label="Lilac note"></button>
+        </div>
+
+        <div class="group">
+          <label class="range-wrap">
+            <span>Size</span>
+            <input id="sizeRange" type="range" min="2" max="32" value="4" />
+            <span id="sizeValue">4 px</span>
+          </label>
+          <button class="action-btn" id="zoomOutBtn">-</button>
+          <button class="action-btn" id="zoomResetBtn">100%</button>
+          <button class="action-btn" id="zoomInBtn">+</button>
+        </div>
+
+        <div class="group" role="toolbar" aria-label="Actions">
+          <button class="action-btn" id="undoBtn">Undo</button>
+          <button class="action-btn" id="clearInkBtn">Clear ink</button>
+          <button class="action-btn" id="clearNotesBtn">Clear notes</button>
+          <button class="action-btn primary" id="downloadBtn">Download</button>
+          <button class="theme-btn" id="themeToggle" aria-label="Switch theme"></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="stage">
+      <h1 class="sr-only">Infinite whiteboard app</h1>
+      <div class="viewport" id="viewport">
+        <div class="board" id="board">
+          <div class="canvas-wrap"><canvas id="boardCanvas"></canvas></div>
+          <div class="notes-layer" id="notesLayer"></div>
+        </div>
+        <div class="hud">
+          <span id="statusText">Pen ready</span>
+          <span class="kbd">P</span>
+          <span class="kbd">E</span>
+          <span class="kbd">N</span>
+          <span class="kbd">Space</span>
+          <span class="kbd">Pinch</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const html = document.documentElement;
+      const viewport = document.getElementById('viewport');
+      const board = document.getElementById('board');
+      const canvas = document.getElementById('boardCanvas');
+      const notesLayer = document.getElementById('notesLayer');
+      const ctx = canvas.getContext('2d');
+      const themeToggle = document.getElementById('themeToggle');
+      const sizeRange = document.getElementById('sizeRange');
+      const sizeValue = document.getElementById('sizeValue');
+      const statusText = document.getElementById('statusText');
+      const zoomResetBtn = document.getElementById('zoomResetBtn');
+      const zoomInBtn = document.getElementById('zoomInBtn');
+      const zoomOutBtn = document.getElementById('zoomOutBtn');
+      const undoBtn = document.getElementById('undoBtn');
+      const clearInkBtn = document.getElementById('clearInkBtn');
+      const clearNotesBtn = document.getElementById('clearNotesBtn');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const toolButtons = [...document.querySelectorAll('[data-tool]')];
+      const colorButtons = [...document.querySelectorAll('[data-color]')];
+      const noteColorButtons = [...document.querySelectorAll('[data-note-color]')];
+
+      const WORLD_SIZE = 6000;
+      const MIN_SCALE = 0.35;
+      const MAX_SCALE = 3.2;
+
+      const state = {
+        theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+        tool: 'pen',
+        color: '#111111',
+        noteColor: 'var(--note-yellow)',
+        size: Number(sizeRange.value),
+        scale: 1,
+        offsetX: -2200,
+        offsetY: -2200,
+        drawing: false,
+        panning: false,
+        history: [],
+        selectedNote: null,
+        noteCount: 0,
+        spacePan: false,
+        drag: null,
+        pointers: new Map(),
+        pinch: null,
+      };
+
+      const setThemeIcon = () => {
+        themeToggle.innerHTML = state.theme === 'dark'
+          ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>'
+          : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+      };
+      const applyTheme = () => {
+        html.setAttribute('data-theme', state.theme);
+        setThemeIcon();
+      };
+      applyTheme();
+      themeToggle.addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; applyTheme(); });
+
+      const setStatus = () => {
+        const zoom = `${Math.round(state.scale * 100)}%`;
+        if (state.tool === 'pen') statusText.textContent = `Pen · ${state.size}px · ${state.color.toUpperCase()} · ${zoom}`;
+        if (state.tool === 'eraser') statusText.textContent = `Eraser · ${state.size}px · ${zoom}`;
+        if (state.tool === 'note') statusText.textContent = `Note mode · tap to add note · ${zoom}`;
+        if (state.tool === 'pan') statusText.textContent = `Pan mode · drag or pinch · ${zoom}`;
+        zoomResetBtn.textContent = zoom;
+      };
+
+      const renderBoardTransform = () => {
+        board.style.width = `${WORLD_SIZE}px`;
+        board.style.height = `${WORLD_SIZE}px`;
+        board.style.transform = `translate(${state.offsetX}px, ${state.offsetY}px) scale(${state.scale})`;
+        setStatus();
+      };
+
+      const clampOffsets = () => {
+        const vw = viewport.clientWidth;
+        const vh = viewport.clientHeight;
+        const minX = vw - WORLD_SIZE * state.scale;
+        const minY = vh - WORLD_SIZE * state.scale;
+        state.offsetX = Math.min(0, Math.max(minX, state.offsetX));
+        state.offsetY = Math.min(0, Math.max(minY, state.offsetY));
+      };
+
+      const toWorld = (clientX, clientY) => {
+        const rect = viewport.getBoundingClientRect();
+        return {
+          x: (clientX - rect.left - state.offsetX) / state.scale,
+          y: (clientY - rect.top - state.offsetY) / state.scale,
+        };
+      };
+
+      const resizeCanvas = () => {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const snapshot = canvas.width ? canvas.toDataURL('image/png') : null;
+        canvas.width = WORLD_SIZE * ratio;
+        canvas.height = WORLD_SIZE * ratio;
+        canvas.style.width = `${WORLD_SIZE}px`;
+        canvas.style.height = `${WORLD_SIZE}px`;
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+        if (snapshot) {
+          const img = new Image();
+          img.onload = () => ctx.drawImage(img, 0, 0, WORLD_SIZE, WORLD_SIZE);
+          img.src = snapshot;
+        } else {
+          saveState();
+        }
+      };
+
+      const saveState = () => {
+        state.history.push(canvas.toDataURL('image/png'));
+        if (state.history.length > 40) state.history.shift();
+        undoBtn.disabled = state.history.length <= 1;
+      };
+      const restoreState = (dataUrl) => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+          ctx.drawImage(img, 0, 0, WORLD_SIZE, WORLD_SIZE);
+        };
+        img.src = dataUrl;
+      };
+
+      const setTool = (tool) => {
+        state.tool = tool;
+        toolButtons.forEach((btn) => {
+          const active = btn.dataset.tool === tool;
+          btn.classList.toggle('active', active);
+          btn.setAttribute('aria-pressed', String(active));
+        });
+        viewport.style.cursor = tool === 'pan' ? 'grab' : (tool === 'note' ? 'copy' : 'crosshair');
+        setStatus();
+      };
+      const setColor = (color) => {
+        state.color = color;
+        colorButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.color === color));
+        if (state.tool !== 'pen') setTool('pen');
+        setStatus();
+      };
+      const setNoteColor = (color) => {
+        state.noteColor = color;
+        noteColorButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.noteColor === color));
+      };
+
+      const clearSelection = () => {
+        if (state.selectedNote) state.selectedNote.classList.remove('selected');
+        state.selectedNote = null;
+      };
+      const selectNote = (note) => {
+        clearSelection();
+        state.selectedNote = note;
+        note.classList.add('selected');
+      };
+
+      const createNote = (x, y) => {
+        state.noteCount += 1;
+        const note = document.createElement('article');
+        note.className = 'note';
+        note.style.left = `${Math.max(0, Math.min(WORLD_SIZE - 280, x - 130))}px`;
+        note.style.top = `${Math.max(0, Math.min(WORLD_SIZE - 190, y - 40))}px`;
+        note.style.background = `color-mix(in oklab, ${state.noteColor} 92%, white 8%)`;
+        note.style.color = '#2a2418';
+        note.innerHTML = `
+          <div class="note-header">
+            <span class="note-title">Note ${state.noteCount}</span>
+            <button class="note-delete" type="button" aria-label="Delete note">✕</button>
+          </div>
+          <textarea class="note-body" placeholder="Write your note..."></textarea>
+          <div class="note-footer">
+            <span>Drag or resize</span>
+            <div class="resize-handle" aria-hidden="true"></div>
+          </div>
+        `;
+        notesLayer.appendChild(note);
+        bindNote(note);
+        selectNote(note);
+        note.querySelector('.note-body').focus();
+      };
+
+      const bindNote = (note) => {
+        const header = note.querySelector('.note-header');
+        const body = note.querySelector('.note-body');
+        const resizeHandle = note.querySelector('.resize-handle');
+        note.querySelector('.note-delete').addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (state.selectedNote === note) clearSelection();
+          note.remove();
+        });
+        note.addEventListener('pointerdown', () => selectNote(note));
+        body.addEventListener('pointerdown', (event) => event.stopPropagation());
+        body.addEventListener('focus', () => selectNote(note));
+        header.addEventListener('pointerdown', (event) => {
+          event.stopPropagation();
+          selectNote(note);
+          state.drag = {
+            type: 'move-note',
+            note,
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            left: parseFloat(note.style.left || '0'),
+            top: parseFloat(note.style.top || '0'),
+          };
+          note.setPointerCapture(event.pointerId);
+        });
+        resizeHandle.addEventListener('pointerdown', (event) => {
+          event.stopPropagation();
+          selectNote(note);
+          state.drag = {
+            type: 'resize-note',
+            note,
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            width: note.offsetWidth,
+            height: note.offsetHeight,
+          };
+          note.setPointerCapture(event.pointerId);
+        });
+      };
+
+      const zoomAt = (clientX, clientY, factor) => {
+        const rect = viewport.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        const worldX = (x - state.offsetX) / state.scale;
+        const worldY = (y - state.offsetY) / state.scale;
+        const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, state.scale * factor));
+        state.scale = nextScale;
+        state.offsetX = x - worldX * state.scale;
+        state.offsetY = y - worldY * state.scale;
+        clampOffsets();
+        renderBoardTransform();
+      };
+
+      const beginDraw = (event) => {
+        const p = toWorld(event.clientX, event.clientY);
+        state.drawing = true;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineWidth = state.size;
+        ctx.strokeStyle = state.tool === 'eraser' ? '#ffffff' : state.color;
+      };
+      const moveDraw = (event) => {
+        if (!state.drawing) return;
+        const p = toWorld(event.clientX, event.clientY);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      };
+      const endDraw = () => {
+        if (!state.drawing) return;
+        state.drawing = false;
+        ctx.closePath();
+        saveState();
+      };
+
+      const beginPan = (event) => {
+        state.panning = true;
+        state.drag = { type: 'pan', pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, offsetX: state.offsetX, offsetY: state.offsetY };
+        viewport.style.cursor = 'grabbing';
+      };
+      const movePan = (event) => {
+        if (!state.drag || state.drag.type !== 'pan' || state.drag.pointerId !== event.pointerId) return;
+        state.offsetX = state.drag.offsetX + (event.clientX - state.drag.startX);
+        state.offsetY = state.drag.offsetY + (event.clientY - state.drag.startY);
+        clampOffsets();
+        renderBoardTransform();
+      };
+      const endPan = (event) => {
+        if (!state.drag || state.drag.type !== 'pan' || state.drag.pointerId !== event.pointerId) return;
+        state.panning = false;
+        state.drag = null;
+        viewport.style.cursor = state.tool === 'pan' ? 'grab' : (state.tool === 'note' ? 'copy' : 'crosshair');
+      };
+
+      viewport.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        const factor = event.deltaY < 0 ? 1.12 : 0.9;
+        zoomAt(event.clientX, event.clientY, factor);
+      }, { passive: false });
+
+      viewport.addEventListener('pointerdown', (event) => {
+        state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (state.pointers.size === 2) {
+          const [a, b] = [...state.pointers.values()];
+          state.pinch = {
+            distance: Math.hypot(a.x - b.x, a.y - b.y),
+            scale: state.scale,
+            offsetX: state.offsetX,
+            offsetY: state.offsetY,
+            centerX: (a.x + b.x) / 2,
+            centerY: (a.y + b.y) / 2,
+          };
+          return;
+        }
+
+        if (event.target.closest('.note')) return;
+        clearSelection();
+
+        if (state.tool === 'note') {
+          const p = toWorld(event.clientX, event.clientY);
+          createNote(p.x, p.y);
+          return;
+        }
+        if (state.tool === 'pan' || state.spacePan) {
+          beginPan(event);
+          return;
+        }
+        beginDraw(event);
+      });
+
+      viewport.addEventListener('pointermove', (event) => {
+        if (state.pointers.has(event.pointerId)) state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (state.pointers.size === 2 && state.pinch) {
+          const [a, b] = [...state.pointers.values()];
+          const distance = Math.hypot(a.x - b.x, a.y - b.y);
+          const centerX = (a.x + b.x) / 2;
+          const centerY = (a.y + b.y) / 2;
+          const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, state.pinch.scale * (distance / state.pinch.distance)));
+          const rect = viewport.getBoundingClientRect();
+          const x = state.pinch.centerX - rect.left;
+          const y = state.pinch.centerY - rect.top;
+          const worldX = (x - state.pinch.offsetX) / state.pinch.scale;
+          const worldY = (y - state.pinch.offsetY) / state.pinch.scale;
+          state.scale = nextScale;
+          state.offsetX = (centerX - rect.left) - worldX * state.scale;
+          state.offsetY = (centerY - rect.top) - worldY * state.scale;
+          clampOffsets();
+          renderBoardTransform();
+          return;
+        }
+        moveDraw(event);
+        movePan(event);
+      });
+
+      const endPointer = (event) => {
+        if (state.drag?.type === 'move-note' && state.drag.pointerId === event.pointerId) {
+          state.drag.note.releasePointerCapture(event.pointerId);
+          state.drag = null;
+        } else if (state.drag?.type === 'resize-note' && state.drag.pointerId === event.pointerId) {
+          state.drag.note.releasePointerCapture(event.pointerId);
+          state.drag = null;
+        } else {
+          endDraw();
+          endPan(event);
+        }
+        state.pointers.delete(event.pointerId);
+        if (state.pointers.size < 2) state.pinch = null;
+      };
+      viewport.addEventListener('pointerup', endPointer);
+      viewport.addEventListener('pointercancel', endPointer);
+      viewport.addEventListener('pointerleave', (event) => { if (state.drawing) endPointer(event); });
+
+      notesLayer.addEventListener('pointermove', (event) => {
+        if (!state.drag || state.drag.pointerId !== event.pointerId) return;
+        if (state.drag.type === 'move-note') {
+          const dx = (event.clientX - state.drag.startX) / state.scale;
+          const dy = (event.clientY - state.drag.startY) / state.scale;
+          state.drag.note.style.left = `${Math.max(0, Math.min(WORLD_SIZE - state.drag.note.offsetWidth, state.drag.left + dx))}px`;
+          state.drag.note.style.top = `${Math.max(0, Math.min(WORLD_SIZE - state.drag.note.offsetHeight, state.drag.top + dy))}px`;
+        }
+        if (state.drag.type === 'resize-note') {
+          const dw = (event.clientX - state.drag.startX) / state.scale;
+          const dh = (event.clientY - state.drag.startY) / state.scale;
+          state.drag.note.style.width = `${Math.max(180, state.drag.width + dw)}px`;
+          state.drag.note.style.height = `${Math.max(140, state.drag.height + dh)}px`;
+        }
+      });
+      notesLayer.addEventListener('pointerup', endPointer);
+      notesLayer.addEventListener('pointercancel', endPointer);
+
+      toolButtons.forEach((btn) => btn.addEventListener('click', () => setTool(btn.dataset.tool)));
+      colorButtons.forEach((btn) => btn.addEventListener('click', () => setColor(btn.dataset.color)));
+      noteColorButtons.forEach((btn) => btn.addEventListener('click', () => setNoteColor(btn.dataset.noteColor)));
+
+      sizeRange.addEventListener('input', () => {
+        state.size = Number(sizeRange.value);
+        sizeValue.textContent = `${state.size} px`;
+        setStatus();
+      });
+      zoomInBtn.addEventListener('click', () => zoomAt(viewport.clientWidth / 2, viewport.clientHeight / 2, 1.15));
+      zoomOutBtn.addEventListener('click', () => zoomAt(viewport.clientWidth / 2, viewport.clientHeight / 2, 0.87));
+      zoomResetBtn.addEventListener('click', () => { state.scale = 1; state.offsetX = -2200; state.offsetY = -2200; clampOffsets(); renderBoardTransform(); });
+      undoBtn.addEventListener('click', () => {
+        if (state.history.length <= 1) return;
+        state.history.pop();
+        restoreState(state.history[state.history.length - 1]);
+        undoBtn.disabled = state.history.length <= 1;
+      });
+      clearInkBtn.addEventListener('click', () => {
+        ctx.clearRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+        saveState();
+      });
+      clearNotesBtn.addEventListener('click', () => { notesLayer.innerHTML = ''; clearSelection(); });
+
+      downloadBtn.addEventListener('click', () => {
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = WORLD_SIZE;
+        exportCanvas.height = WORLD_SIZE;
+        const exportCtx = exportCanvas.getContext('2d');
+        exportCtx.fillStyle = '#ffffff';
+        exportCtx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+        exportCtx.drawImage(canvas, 0, 0);
+
+        for (const note of [...notesLayer.querySelectorAll('.note')]) {
+          const x = parseFloat(note.style.left || '0');
+          const y = parseFloat(note.style.top || '0');
+          const w = note.offsetWidth;
+          const h = note.offsetHeight;
+          const radius = 16;
+          exportCtx.fillStyle = getComputedStyle(note).backgroundColor;
+          exportCtx.strokeStyle = 'rgba(0,0,0,0.12)';
+          exportCtx.beginPath();
+          exportCtx.moveTo(x + radius, y);
+          exportCtx.lineTo(x + w - radius, y);
+          exportCtx.quadraticCurveTo(x + w, y, x + w, y + radius);
+          exportCtx.lineTo(x + w, y + h - radius);
+          exportCtx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+          exportCtx.lineTo(x + radius, y + h);
+          exportCtx.quadraticCurveTo(x, y + h, x, y + h - radius);
+          exportCtx.lineTo(x, y + radius);
+          exportCtx.quadraticCurveTo(x, y, x + radius, y);
+          exportCtx.closePath();
+          exportCtx.fill();
+          exportCtx.stroke();
+          exportCtx.fillStyle = 'rgba(0,0,0,0.75)';
+          exportCtx.font = '700 11px Satoshi, sans-serif';
+          exportCtx.fillText(note.querySelector('.note-title').textContent, x + 14, y + 18);
+          exportCtx.font = '16px Satoshi, sans-serif';
+          const text = note.querySelector('.note-body').value || '';
+          const words = text.split(/\s+/);
+          let line = '';
+          const lines = [];
+          for (const word of words) {
+            const test = line ? `${line} ${word}` : word;
+            if (exportCtx.measureText(test).width > w - 28) {
+              if (line) lines.push(line);
+              line = word;
+            } else line = test;
+          }
+          if (line) lines.push(line);
+          lines.slice(0, Math.floor((h - 46) / 20)).forEach((lineText, i) => exportCtx.fillText(lineText, x + 14, y + 44 + i * 20));
+        }
+
+        const link = document.createElement('a');
+        link.href = exportCanvas.toDataURL('image/png');
+        link.download = `infinite-whiteboard-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.png`;
+        link.click();
+      });
+
+      window.addEventListener('keydown', (event) => {
+        const typing = ['TEXTAREA', 'INPUT'].includes(document.activeElement?.tagName);
+        const key = event.key.toLowerCase();
+        if ((event.ctrlKey || event.metaKey) && key === 'z') { event.preventDefault(); undoBtn.click(); return; }
+        if (event.code === 'Space' && !typing) { event.preventDefault(); state.spacePan = true; viewport.style.cursor = 'grab'; }
+        if (typing) return;
+        if (key === 'p') setTool('pen');
+        if (key === 'e') setTool('eraser');
+        if (key === 'n') setTool('note');
+        if (key === 'h') setTool('pan');
+        if ((key === 'delete' || key === 'backspace') && state.selectedNote) { state.selectedNote.remove(); clearSelection(); }
+      });
+      window.addEventListener('keyup', (event) => {
+        if (event.code === 'Space') {
+          state.spacePan = false;
+          viewport.style.cursor = state.tool === 'pan' ? 'grab' : (state.tool === 'note' ? 'copy' : 'crosshair');
+        }
+      });
+
+      sizeValue.textContent = `${state.size} px`;
+      resizeCanvas();
+      clampOffsets();
+      renderBoardTransform();
+      setNoteColor(state.noteColor);
+      setStatus();
+      new ResizeObserver(() => { clampOffsets(); renderBoardTransform(); }).observe(viewport);
+      window.addEventListener('resize', () => { clampOffsets(); renderBoardTransform(); });
+      setTool('pen');
+    })();
+  </script>
+</body>
+</html>
