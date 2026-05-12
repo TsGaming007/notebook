@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Notebook</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&family=DM+Mono:wght@300;400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --paper: #faf8f2;
+    --line: #c8d8e8;
+    --margin: #f0b8b8;
+    --ink: #1a1a2e;
+    --ui-bg: #1a1a2e;
+    --ui-text: #faf8f2;
+    --accent: #e8a020;
+    --line-height: 40px;
+    --margin-left: 80px;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #2a2a3e;
+    font-family: 'DM Mono', monospace;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── TOOLBAR ── */
+  #toolbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    background: var(--ui-bg);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 16px;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  }
+
+  #toolbar .title {
+    font-family: 'Caveat', cursive;
+    font-size: 22px;
+    color: var(--accent);
+    font-weight: 600;
+    margin-right: 10px;
+    letter-spacing: 0.5px;
+  }
+
+  .sep { width: 1px; height: 30px; background: #444; margin: 0 6px; }
+
+  .tool-btn {
+    width: 38px; height: 38px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    transition: background 0.15s, color 0.15s;
+    position: relative;
+  }
+  .tool-btn:hover { background: #333; color: #fff; }
+  .tool-btn.active { background: var(--accent); color: #1a1a2e; }
+  .tool-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    top: 44px; left: 50%; transform: translateX(-50%);
+    background: #111; color: #fff;
+    font-size: 11px; font-family: 'DM Mono', monospace;
+    padding: 4px 8px; border-radius: 4px;
+    white-space: nowrap; pointer-events: none;
+    z-index: 200;
+  }
+
+  /* size slider */
+  #sizeSlider {
+    -webkit-appearance: none;
+    width: 80px; height: 4px;
+    border-radius: 2px;
+    background: #444;
+    outline: none;
+    cursor: pointer;
+  }
+  #sizeSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  /* color swatches */
+  .swatch {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.1s, border-color 0.1s;
+    flex-shrink: 0;
+  }
+  .swatch:hover { transform: scale(1.2); }
+  .swatch.active { border-color: #fff; transform: scale(1.15); }
+
+  /* custom color picker */
+  #colorPicker {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid #555;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+    overflow: hidden;
+  }
+  #colorPicker::-webkit-color-swatch-wrapper { padding: 0; }
+  #colorPicker::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+  /* download btn */
+  #downloadBtn {
+    margin-left: auto;
+    padding: 0 16px;
+    height: 36px;
+    border: none;
+    background: var(--accent);
+    color: #1a1a2e;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  #downloadBtn:hover { opacity: 0.85; transform: translateY(-1px); }
+  #downloadBtn:active { transform: translateY(0); }
+
+  /* ── CANVAS AREA ── */
+  #canvasWrap {
+    position: fixed;
+    top: 56px; left: 0; right: 0; bottom: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* notebook paper background */
+  #bgCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* drawing canvas — same size as bgCanvas */
+  #drawCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 1;
+    cursor: crosshair;
+    touch-action: none;
+    transform-origin: 0 0;
+  }
+
+  /* zoom indicator */
+  #zoomIndicator {
+    position: fixed;
+    bottom: 16px; right: 16px;
+    background: rgba(26,26,46,0.85);
+    color: #e8a020;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s;
+    z-index: 200;
+  }
+
+  /* zoom/pan toggle button */
+  #modeToggle {
+    position: fixed;
+    bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: #1a1a2e;
+    border: 2px solid #444;
+    color: #aaa;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 8px 20px;
+    border-radius: 30px;
+    cursor: pointer;
+    z-index: 200;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  #modeToggle.pan-mode {
+    background: #e8a020;
+    border-color: #e8a020;
+    color: #1a1a2e;
+  }
+
+  /* cursor dot */
+  #cursorDot {
+    position: fixed;
+    pointer-events: none;
+    border-radius: 50%;
+    transform: translate(-50%,-50%);
+    z-index: 999;
+    transition: width 0.1s, height 0.1s, background 0.1s, opacity 0.1s;
+    opacity: 0;
+  }
+
+  /* page ring holes */
+  #rings {
+    position: fixed;
+    top: 56px; left: 0;
+    width: 60px;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 28px;
+    gap: 70px;
+    pointer-events: none;
+    z-index: 50;
+  }
+  .ring {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: #2a2a3e;
+    border: 3px solid #777;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <span class="title">✏️ Notebook</span>
+  <div class="sep"></div>
+
+  <!-- tools -->
+  <button class="tool-btn active" id="toolPen" title="Pen (P)">🖊️</button>
+  <button class="tool-btn" id="toolMarker" title="Marker (M)">🖌️</button>
+  <button class="tool-btn" id="toolEraser" title="Eraser (E)">⬜</button>
+  <button class="tool-btn" id="toolLine" title="Straight Line (L)">╱</button>
+
+  <div class="sep"></div>
+
+  <!-- size -->
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:#888"><circle cx="7" cy="7" r="2.5" fill="currentColor"/></svg>
+  <input type="range" id="sizeSlider" min="1" max="40" value="3">
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:#888"><circle cx="7" cy="7" r="6" fill="currentColor"/></svg>
+
+  <div class="sep"></div>
+
+  <!-- color swatches -->
+  <div class="swatch active" style="background:#1a1a2e" data-color="#1a1a2e"></div>
+  <div class="swatch" style="background:#e8505b" data-color="#e8505b"></div>
+  <div class="swatch" style="background:#2e86de" data-color="#2e86de"></div>
+  <div class="swatch" style="background:#27ae60" data-color="#27ae60"></div>
+  <div class="swatch" style="background:#e8a020" data-color="#e8a020"></div>
+  <div class="swatch" style="background:#9b59b6" data-color="#9b59b6"></div>
+  <input type="color" id="colorPicker" value="#1a1a2e" title="Custom color">
+
+  <div class="sep"></div>
+  <button class="tool-btn" id="btnUndo" title="Undo (Ctrl+Z)">↩</button>
+  <button class="tool-btn" id="btnRedo" title="Redo (Ctrl+Y)">↪</button>
+  <button class="tool-btn" id="btnClear" title="Clear page">🗑️</button>
+
+  <!-- download -->
+  <button id="downloadBtn">⬇ Download PNG</button>
+</div>
+
+<!-- RINGS (decorative) -->
+<div id="rings"></div>
+
+<!-- CANVAS WRAP -->
+<div id="canvasWrap">
+  <canvas id="bgCanvas"></canvas>
+  <canvas id="drawCanvas"></canvas>
+</div>
+
+<div id="cursorDot"></div>
+<div id="zoomIndicator">100%</div>
+<button id="modeToggle">✏️ Draw</button>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────
+const LINE_H      = 40;
+const MARGIN_X    = 80;
+const MIN_PAGES   = 3;
+const PAGE_H      = 1123;
+const EXTRA_PX    = 400;
+
+// ── STATE ───────────────────────────────────────────────────
+let tool       = 'pen';
+let color      = '#1a1a2e';
+let size       = 3;
+let drawing    = false;
+let lastX      = 0, lastY = 0;
+let lineStart  = null;
+let canvasH    = PAGE_H * MIN_PAGES;
+
+// zoom/pan state
+let scale      = 1;
+let panX       = 0;
+let panY       = 0;   // pan within #canvasWrap (adds to scrollTop)
+let isPanMode  = false;
+
+// pinch tracking
+let pinchStartDist  = 0;
+let pinchStartScale = 1;
+let pinchMidX       = 0;
+let pinchMidY       = 0;
+
+// pan tracking (single finger in pan mode)
+let panTracking = false;
+let panLastX    = 0;
+let panLastY    = 0;
+
+let undoStack  = [];
+let redoStack  = [];
+
+// ── ELEMENTS ────────────────────────────────────────────────
+const wrap          = document.getElementById('canvasWrap');
+const bgCanvas      = document.getElementById('bgCanvas');
+const drawCanvas    = document.getElementById('drawCanvas');
+const bgCtx         = bgCanvas.getContext('2d');
+const ctx           = drawCanvas.getContext('2d');
+const cursorDot     = document.getElementById('cursorDot');
+const ringsDiv      = document.getElementById('rings');
+const zoomIndicator = document.getElementById('zoomIndicator');
+const modeToggle    = document.getElementById('modeToggle');
+
+// ── ZOOM HELPERS ────────────────────────────────────────────
+let zoomTimer = null;
+function showZoom() {
+  zoomIndicator.textContent = Math.round(scale * 100) + '%';
+  zoomIndicator.style.opacity = '1';
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(() => zoomIndicator.style.opacity = '0', 1500);
+}
+
+function applyTransform() {
+  // We scale both canvases via CSS transform, no re-draw needed
+  bgCanvas.style.transform   = `scale(${scale})`;
+  drawCanvas.style.transform = `scale(${scale})`;
+  // update canvasWrap scroll height to match scaled content
+  const scaledH = canvasH * scale;
+  // set a spacer so scrollbar reflects true height
+  wrap.style.height = (window.innerHeight - 56) + 'px';
+  // We manually manage scrollTop for panning
+}
+
+function clampScale(s) { return Math.min(Math.max(s, 0.3), 5); }
+
+// ── INIT ────────────────────────────────────────────────────
+function setCanvasSize(h) {
+  const W = window.innerWidth;
+  canvasH  = h;
+  bgCanvas.width  = W; bgCanvas.height  = h;
+  drawCanvas.width = W; drawCanvas.height = h;
+  // reset transform origin so scale works from top-left
+  bgCanvas.style.transformOrigin   = '0 0';
+  drawCanvas.style.transformOrigin = '0 0';
+  drawBackground();
+  applyTransform();
+}
+
+function drawBackground() {
+  const W = bgCanvas.width;
+  const H = bgCanvas.height;
+  bgCtx.clearRect(0,0,W,H);
+  bgCtx.fillStyle = '#faf8f2';
+  bgCtx.fillRect(0,0,W,H);
+  bgCtx.strokeStyle = '#c5d9ee';
+  bgCtx.lineWidth   = 1;
+  for (let y = LINE_H; y < H; y += LINE_H) {
+    bgCtx.beginPath();
+    bgCtx.moveTo(0, y + 0.5);
+    bgCtx.lineTo(W, y + 0.5);
+    bgCtx.stroke();
+  }
+  bgCtx.strokeStyle = '#f0b0b0';
+  bgCtx.lineWidth   = 1.5;
+  bgCtx.beginPath();
+  bgCtx.moveTo(MARGIN_X + 0.5, 0);
+  bgCtx.lineTo(MARGIN_X + 0.5, H);
+  bgCtx.stroke();
+  bgCtx.strokeStyle = '#ddd0c0';
+  bgCtx.lineWidth   = 2;
+  bgCtx.setLineDash([6,6]);
+  for (let y = PAGE_H; y < H; y += PAGE_H) {
+    bgCtx.beginPath();
+    bgCtx.moveTo(0, y);
+    bgCtx.lineTo(W, y);
+    bgCtx.stroke();
+  }
+  bgCtx.setLineDash([]);
+}
+
+function rebuildRings() {
+  ringsDiv.innerHTML = '';
+  const gap = 70;
+  let count = Math.floor((window.innerHeight - 56) / gap) + 2;
+  for (let i = 0; i < count; i++) {
+    const d = document.createElement('div');
+    d.className = 'ring';
+    ringsDiv.appendChild(d);
+  }
+}
+
+function init() {
+  setCanvasSize(canvasH);
+  rebuildRings();
+  saveUndo();
+}
+
+// ── APPLY TOOL ──────────────────────────────────────────────
+function applyTool() {
+  ctx.lineCap   = 'round';
+  ctx.lineJoin  = 'round';
+  if (tool === 'eraser') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+    ctx.lineWidth   = size * 4;
+    ctx.globalAlpha = 1;
+  } else if (tool === 'marker') {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = size * 3;
+    ctx.globalAlpha = 0.35;
+  } else {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = size;
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── UNDO / REDO ─────────────────────────────────────────────
+function saveUndo() {
+  undoStack.push(ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
+  if (undoStack.length > 40) undoStack.shift();
+  redoStack = [];
+}
+function undo() {
+  if (undoStack.length < 2) return;
+  redoStack.push(undoStack.pop());
+  ctx.putImageData(undoStack[undoStack.length - 1], 0, 0);
+}
+function redo() {
+  if (!redoStack.length) return;
+  const state = redoStack.pop();
+  undoStack.push(state);
+  ctx.putImageData(state, 0, 0);
+}
+
+// ── INFINITE SCROLL EXTENSION ───────────────────────────────
+function checkExpand() {
+  const scrollBottom = wrap.scrollTop + wrap.clientHeight;
+  const scaledH = canvasH * scale;
+  if (scrollBottom > scaledH - EXTRA_PX) {
+    const old = ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+    canvasH += PAGE_H;
+    setCanvasSize(canvasH);
+    ctx.putImageData(old, 0, 0);
+  }
+}
+wrap.addEventListener('scroll', checkExpand);
+
+// ── CANVAS COORDS (accounting for zoom + scroll) ─────────────
+function clientToCanvas(cx, cy) {
+  const rect = drawCanvas.getBoundingClientRect();
+  // rect already reflects CSS scale transform
+  return {
+    x: (cx - rect.left) / scale,
+    y: (cy - rect.top)  / scale
+  };
+}
+
+function getTouchPos(e) {
+  const t = e.touches[0];
+  return clientToCanvas(t.clientX, t.clientY);
+}
+function getMousePos(e) {
+  return clientToCanvas(e.clientX, e.clientY);
+}
+
+// ── PINCH-TO-ZOOM ───────────────────────────────────────────
+function getTouchDist(e) {
+  const dx = e.touches[0].clientX - e.touches[1].clientX;
+  const dy = e.touches[0].clientY - e.touches[1].clientY;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+function getTouchMid(e) {
+  return {
+    x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+    y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+  };
+}
+
+// ── TOUCH HANDLER ───────────────────────────────────────────
+drawCanvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+
+  if (e.touches.length === 2) {
+    // Always handle pinch regardless of mode
+    drawing = false;
+    pinchStartDist  = getTouchDist(e);
+    pinchStartScale = scale;
+    const mid       = getTouchMid(e);
+    pinchMidX       = mid.x;
+    pinchMidY       = mid.y;
+    return;
+  }
+
+  if (isPanMode) {
+    // single finger pan
+    panTracking = true;
+    panLastX = e.touches[0].clientX;
+    panLastY = e.touches[0].clientY;
+    return;
+  }
+
+  // draw mode single finger
+  const {x,y} = getTouchPos(e);
+  drawing = true;
+  lastX = x; lastY = y;
+
+  if (tool === 'line') { lineStart = {x,y}; saveUndo(); return; }
+
+  applyTool();
+  ctx.beginPath();
+  ctx.arc(x, y, ctx.lineWidth / 2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+}, {passive:false});
+
+drawCanvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+
+  if (e.touches.length === 2) {
+    // pinch zoom
+    const dist = getTouchDist(e);
+    const mid  = getTouchMid(e);
+    const newScale = clampScale(pinchStartScale * (dist / pinchStartDist));
+
+    // zoom toward pinch midpoint
+    const scrollTop = wrap.scrollTop;
+    const canvasMidY = (mid.y - 56 + scrollTop) / scale;
+
+    scale = newScale;
+    applyTransform();
+
+    // re-scroll so the same canvas point stays under the pinch mid
+    wrap.scrollTop = canvasMidY * scale - (mid.y - 56);
+
+    showZoom();
+    return;
+  }
+
+  if (isPanMode && panTracking) {
+    const dx = e.touches[0].clientX - panLastX;
+    const dy = e.touches[0].clientY - panLastY;
+    panLastX = e.touches[0].clientX;
+    panLastY = e.touches[0].clientY;
+    wrap.scrollTop -= dy;
+    // horizontal pan via scrollLeft on a hidden overflow — use translate instead
+    panX = Math.max(-(drawCanvas.width * scale - window.innerWidth), Math.min(0, panX + dx));
+    bgCanvas.style.marginLeft   = panX + 'px';
+    drawCanvas.style.marginLeft = panX + 'px';
+    return;
+  }
+
+  if (!drawing) return;
+  const {x,y} = getTouchPos(e);
+
+  if (tool === 'line') {
+    if (linePreviewData) ctx.putImageData(linePreviewData, 0, 0);
+    else linePreviewData = ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+    applyTool();
+    ctx.beginPath();
+    ctx.moveTo(lineStart.x, lineStart.y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    return;
+  }
+
+  applyTool();
+  ctx.beginPath();
+  ctx.moveTo(lastX, lastY);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  lastX = x; lastY = y;
+}, {passive:false});
+
+drawCanvas.addEventListener('touchend', (e) => {
+  panTracking = false;
+  if (!drawing) return;
+  drawing = false;
+  if (tool === 'line') { linePreviewData = null; lineStart = null; }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  saveUndo();
+  checkExpand();
+});
+
+// ── MOUSE EVENTS ────────────────────────────────────────────
+let linePreviewData = null;
+
+drawCanvas.addEventListener('mousedown', (e) => {
+  if (isPanMode) return;
+  const {x,y} = getMousePos(e);
+  drawing = true; lastX = x; lastY = y;
+  if (tool === 'line') { lineStart = {x,y}; saveUndo(); return; }
+  applyTool();
+  ctx.beginPath();
+  ctx.arc(x, y, ctx.lineWidth / 2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+});
+
+drawCanvas.addEventListener('mousemove', (e) => {
+  updateCursor(e);
+  if (!drawing || isPanMode) return;
+  const {x,y} = getMousePos(e);
+  if (tool === 'line') {
+    if (linePreviewData) ctx.putImageData(linePreviewData, 0, 0);
+    else linePreviewData = ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+    applyTool();
+    ctx.beginPath();
+    ctx.moveTo(lineStart.x, lineStart.y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    return;
+  }
+  applyTool();
+  ctx.beginPath();
+  ctx.moveTo(lastX, lastY);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  lastX = x; lastY = y;
+});
+
+drawCanvas.addEventListener('mouseup',    endDrawMouse);
+drawCanvas.addEventListener('mouseleave', endDrawMouse);
+function endDrawMouse() {
+  if (!drawing) return;
+  drawing = false;
+  if (tool === 'line') { linePreviewData = null; lineStart = null; }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  saveUndo();
+  checkExpand();
+}
+
+// Mouse wheel zoom
+wrap.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = clampScale(scale * delta);
+  const canvasY  = (e.clientY - 56 + wrap.scrollTop) / scale;
+  scale = newScale;
+  applyTransform();
+  wrap.scrollTop = canvasY * scale - (e.clientY - 56);
+  showZoom();
+}, {passive:false});
+
+// ── CURSOR DOT ──────────────────────────────────────────────
+function updateCursor(e) {
+  let cx = e.touches ? e.touches[0].clientX : e.clientX;
+  let cy = e.touches ? e.touches[0].clientY : e.clientY;
+  const s = (tool === 'eraser' ? size * 4 : (tool === 'marker' ? size * 3 : size)) * scale;
+  cursorDot.style.left   = cx + 'px';
+  cursorDot.style.top    = cy + 'px';
+  cursorDot.style.width  = Math.max(s, 4) + 'px';
+  cursorDot.style.height = Math.max(s, 4) + 'px';
+  cursorDot.style.background = tool === 'eraser' ? 'rgba(255,255,255,0.7)' : color;
+  cursorDot.style.border = tool === 'eraser' ? '2px solid #999' : 'none';
+  cursorDot.style.opacity = isPanMode ? '0' : '0.6';
+}
+drawCanvas.addEventListener('mousemove', updateCursor);
+drawCanvas.addEventListener('mouseleave', () => cursorDot.style.opacity = '0');
+drawCanvas.addEventListener('mouseenter', (e) => { updateCursor(e); });
+document.body.style.cursor = 'none';
+
+// ── MODE TOGGLE ─────────────────────────────────────────────
+modeToggle.addEventListener('click', () => {
+  isPanMode = !isPanMode;
+  modeToggle.textContent = isPanMode ? '🤚 Pan/Zoom' : '✏️ Draw';
+  modeToggle.classList.toggle('pan-mode', isPanMode);
+  drawCanvas.style.cursor = isPanMode ? 'grab' : 'crosshair';
+  document.body.style.cursor = isPanMode ? 'default' : 'none';
+  cursorDot.style.opacity = '0';
+});
+
+// ── TOOLBAR INTERACTIONS ─────────────────────────────────────
+function setTool(t) {
+  tool = t;
+  ['toolPen','toolMarker','toolEraser','toolLine'].forEach(id => {
+    document.getElementById(id).classList.remove('active');
+  });
+  const map = {pen:'toolPen', marker:'toolMarker', eraser:'toolEraser', line:'toolLine'};
+  document.getElementById(map[t]).classList.add('active');
+}
+document.getElementById('toolPen').onclick    = () => setTool('pen');
+document.getElementById('toolMarker').onclick = () => setTool('marker');
+document.getElementById('toolEraser').onclick = () => setTool('eraser');
+document.getElementById('toolLine').onclick   = () => setTool('line');
+
+document.getElementById('sizeSlider').oninput = e => { size = +e.target.value; };
+
+document.querySelectorAll('.swatch').forEach(s => {
+  s.onclick = () => {
+    document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+    s.classList.add('active');
+    color = s.dataset.color;
+    document.getElementById('colorPicker').value = color;
+    if (tool === 'eraser') setTool('pen');
+  };
+});
+document.getElementById('colorPicker').oninput = e => {
+  color = e.target.value;
+  document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+  if (tool === 'eraser') setTool('pen');
+};
+
+document.getElementById('btnUndo').onclick  = undo;
+document.getElementById('btnRedo').onclick  = redo;
+document.getElementById('btnClear').onclick = () => {
+  if (!confirm('Clear the entire notebook?')) return;
+  saveUndo();
+  ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  saveUndo();
+};
+
+// ── KEYBOARD SHORTCUTS ───────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+  if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+  if (!e.ctrlKey) {
+    if (e.key === 'p' || e.key === 'P') setTool('pen');
+    if (e.key === 'm' || e.key === 'M') setTool('marker');
+    if (e.key === 'e' || e.key === 'E') setTool('eraser');
+    if (e.key === 'l' || e.key === 'L') setTool('line');
+  }
+});
+
+// ── DOWNLOAD ─────────────────────────────────────────────────
+document.getElementById('downloadBtn').onclick = () => {
+  const tmp    = document.createElement('canvas');
+  tmp.width    = drawCanvas.width;
+  tmp.height   = drawCanvas.height;
+  const tCtx   = tmp.getContext('2d');
+  tCtx.drawImage(bgCanvas,   0, 0);
+  tCtx.drawImage(drawCanvas, 0, 0);
+  const url    = tmp.toDataURL('image/png');
+  const a      = document.createElement('a');
+  a.href       = url;
+  a.download   = 'notebook-' + Date.now() + '.png';
+  a.click();
+};
+
+// ── RESIZE ───────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const old = ctx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+  setCanvasSize(canvasH);
+  ctx.putImageData(old, 0, 0);
+  rebuildRings();
+});
+
+// ── START ────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
