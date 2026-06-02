@@ -1,1 +1,378 @@
-// Paste the contents of your husserl_mereology_live.jsx here
+import { useState, useEffect } from "react";
+
+// ── Μερεολογική λογική σε JavaScript ──────────────────────────────────────────
+class MereologicalDomain {
+  constructor(objects) {
+    this.objects = new Set(objects);
+    this.partOf = new Set();
+    for (const x of this.objects) this.partOf.add(`${x}|${x}`);
+  }
+  addPart(a, b) {
+    this.partOf.add(`${a}|${b}`);
+    this._closeTransitivity();
+  }
+  P(a, b) { return this.partOf.has(`${a}|${b}`); }
+  checkReflexivity() { return [...this.objects].every(x => this.P(x, x)); }
+  checkAntisymmetry() {
+    for (const a of this.objects)
+      for (const b of this.objects)
+        if (this.P(a, b) && this.P(b, a) && a !== b) return false;
+    return true;
+  }
+  checkTransitivity() {
+    for (const a of this.objects)
+      for (const b of this.objects)
+        for (const c of this.objects)
+          if (this.P(a, b) && this.P(b, c) && !this.P(a, c)) return false;
+    return true;
+  }
+  isMoment(a, b) { return this.P(a, b) && a !== b; }
+  isPiece(a, b) {
+    if (!this.P(a, b)) return false;
+    return !this.P(b, a) || a === b;
+  }
+  momentsOf(x) { return [...this.objects].filter(a => this.isMoment(a, x)); }
+  piecesOf(x) { return [...this.objects].filter(a => this.isPiece(a, x)); }
+  getAllPairs() {
+    const result = [];
+    for (const k of this.partOf) {
+      const [a, b] = k.split("|");
+      result.push({ a, b, identity: a === b });
+    }
+    return result.sort((x, y) => x.a.localeCompare(y.a));
+  }
+  _closeTransitivity() {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const newPairs = new Set();
+      for (const k1 of this.partOf) {
+        const [a, b] = k1.split("|");
+        for (const k2 of this.partOf) {
+          const [b2, c] = k2.split("|");
+          if (b === b2 && !this.partOf.has(`${a}|${c}`)) {
+            newPairs.add(`${a}|${c}`); changed = true;
+          }
+        }
+      }
+      for (const p of newPairs) this.partOf.add(p);
+    }
+  }
+}
+
+// ── Χρώματα / στυλ ────────────────────────────────────────────────────────────
+const C = {
+  bg:      "#0D0F14",
+  surface: "#13161E",
+  border:  "#1E2330",
+  accent:  "#4F8EF7",
+  accent2: "#7C5CBF",
+  green:   "#3ECFA4",
+  amber:   "#F0B429",
+  text:    "#E2E8F0",
+  muted:   "#64748B",
+  code:    "#1A1F2E",
+};
+
+const mono = "'JetBrains Mono', 'Fira Code', 'Courier New', monospace";
+const serif = "'Georgia', 'Times New Roman', serif";
+
+// ── Υποστηρικτικά components ──────────────────────────────────────────────────
+function Tag({ children, color }) {
+  return (
+    <span style={{
+      display: "inline-block",
+      background: color + "22",
+      color,
+      border: `1px solid ${color}44`,
+      borderRadius: 4,
+      fontSize: 11,
+      padding: "1px 7px",
+      fontFamily: mono,
+      fontWeight: 600,
+      letterSpacing: "0.04em",
+    }}>{children}</span>
+  );
+}
+
+function Formula({ f }) {
+  return (
+    <div style={{
+      background: C.code,
+      border: `1px solid ${C.border}`,
+      borderLeft: `3px solid ${C.accent}`,
+      padding: "10px 18px",
+      margin: "10px 0",
+      fontFamily: mono,
+      fontSize: 15,
+      color: C.accent,
+      letterSpacing: "0.03em",
+    }}>{f}</div>
+  );
+}
+
+function SectionTitle({ n, title }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "28px 0 10px" }}>
+      <span style={{ fontFamily: mono, fontSize: 11, color: C.accent2, letterSpacing: "0.1em" }}>
+        {String(n).padStart(2, "0")}
+      </span>
+      <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: "0.03em",
+                   fontFamily: serif }}>{title}</h2>
+    </div>
+  );
+}
+
+function CheckRow({ label, ok }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "7px 14px",
+      background: C.code,
+      border: `1px solid ${C.border}`,
+      borderRadius: 5,
+      marginBottom: 4,
+    }}>
+      <span style={{ fontSize: 16, color: ok ? C.green : "#F87171" }}>{ok ? "✓" : "✗"}</span>
+      <span style={{ fontFamily: mono, fontSize: 13, color: C.text }}>{label}</span>
+      <Tag color={ok ? C.green : "#F87171"}>{ok ? "αληθές" : "ψευδές"}</Tag>
+    </div>
+  );
+}
+
+// ── Κύριο component ───────────────────────────────────────────────────────────
+export default function App() {
+  const [objects, setObjects] = useState(["D", "A", "B"]);
+  const [relations, setRelations] = useState([["A","D"],["B","D"]]);
+  const [newObj, setNewObj] = useState("");
+  const [newA, setNewA] = useState("");
+  const [newB, setNewB] = useState("");
+  const [highlight, setHighlight] = useState(null);
+
+  const domain = new MereologicalDomain(objects);
+  for (const [a, b] of relations) domain.addPart(a, b);
+
+  const axioms = [
+    { label: "Αναστοχαστικότητα:  ∀a: P(a,a)", ok: domain.checkReflexivity() },
+    { label: "Αντισυμμετρία:  P(a,β)∧P(β,a) → a=β", ok: domain.checkAntisymmetry() },
+    { label: "Μεταβατικότητα:  P(a,β)∧P(β,γ) → P(a,γ)", ok: domain.checkTransitivity() },
+  ];
+  const allOk = axioms.every(a => a.ok);
+  const pairs = domain.getAllPairs();
+
+  function addObject() {
+    const o = newObj.trim().toUpperCase();
+    if (o && !objects.includes(o)) { setObjects([...objects, o]); setNewObj(""); }
+  }
+  function addRelation() {
+    const a = newA.trim().toUpperCase(), b = newB.trim().toUpperCase();
+    if (a && b && objects.includes(a) && objects.includes(b) && a !== b) {
+      setRelations([...relations, [a, b]]); setNewA(""); setNewB("");
+    }
+  }
+  function reset() {
+    setObjects(["D","A","B"]); setRelations([["A","D"],["B","D"]]);
+    setNewObj(""); setNewA(""); setNewB(""); setHighlight(null);
+  }
+
+  const inputStyle = {
+    background: C.code, border: `1px solid ${C.border}`, borderRadius: 5,
+    color: C.text, fontFamily: mono, fontSize: 13,
+    padding: "7px 12px", outline: "none", width: "100%",
+  };
+  const btnStyle = (accent) => ({
+    background: accent + "22", border: `1px solid ${accent}55`,
+    color: accent, fontFamily: mono, fontSize: 12, fontWeight: 700,
+    padding: "7px 16px", borderRadius: 5, cursor: "pointer",
+    letterSpacing: "0.05em", whiteSpace: "nowrap",
+  });
+
+  return (
+    <div style={{ background: C.bg, minHeight: "100vh", padding: "28px 24px",
+                  fontFamily: serif, color: C.text, maxWidth: 720, margin: "0 auto" }}>
+
+      {/* ── Header ── */}
+      <div style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 18, marginBottom: 4 }}>
+        <div style={{ fontFamily: mono, fontSize: 11, color: C.accent2, letterSpacing: "0.15em",
+                      marginBottom: 6 }}>ΦΑΙΝΟΜΕΝΟΛΟΓΙΑ · ΜΕΡΕΟΛΟΓΙΑ</div>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: C.text, lineHeight: 1.3 }}>
+          Τυπική Μερεολογική Οντολογία
+        </h1>
+        <div style={{ marginTop: 4, fontSize: 13, color: C.muted, fontFamily: mono }}>
+          Edmund Husserl — Γ΄ Λογική Έρευνα (1901)
+        </div>
+      </div>
+
+      {/* ── Αξιώματα ── */}
+      <SectionTitle n={1} title="Αξιώματα της Σχέσης Μέρους P(a, β)" />
+
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 12, lineHeight: 1.7 }}>
+        Η σχέση <span style={{ fontFamily: mono, color: C.accent }}>P(a, β)</span> — «το <em>a</em> είναι
+        μέρος του <em>β</em>» — ορίζει μερική διάταξη μέσω τριών αξιωμάτων:
+      </div>
+
+      <Formula f="∀a: P(a, a)   [Αναστοχαστικότητα]" />
+      <Formula f="∀a ∀β: [P(a,β) ∧ P(β,a)] → a=β   [Αντισυμμετρία]" />
+      <Formula f="∀a ∀β ∀γ: [P(a,β) ∧ P(β,γ)] → P(a,γ)   [Μεταβατικότητα]" />
+
+      {/* ── Ορισμοί ── */}
+      <SectionTitle n={2} title="Παράγωγοι Ορισμοί: Στιγμή & Τμήμα" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {[
+          { label: "Στιγμή (Σ)", sub: "Μη-Αυτόνομο Μέρος", f: "Σ(a,β) ↔ P(a,β) ∧ F(a,β)", desc: "Εξαρτάται αναγκαστικά από το σύνολο — δεν υπάρχει χωρίς αυτό.", color: C.accent },
+          { label: "Τμήμα (T)", sub: "Αυτόνομο Μέρος", f: "T(a,β) ↔ P(a,β) ∧ ¬F(a,β)", desc: "Διατηρεί οντολογική αυτάρκεια — μπορεί να υπάρξει ανεξάρτητα.", color: C.green },
+        ].map(({ label, sub, f, desc, color }) => (
+          <div key={label} style={{
+            background: C.surface, border: `1px solid ${C.border}`,
+            borderRadius: 7, padding: 14,
+          }}>
+            <div style={{ fontWeight: 700, color, fontSize: 14, marginBottom: 2 }}>{label}</div>
+            <div style={{ fontFamily: mono, fontSize: 11, color: C.muted, marginBottom: 8 }}>{sub}</div>
+            <div style={{ fontFamily: mono, fontSize: 13, color: color, background: C.code,
+                          padding: "6px 10px", borderRadius: 4, marginBottom: 8 }}>{f}</div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{desc}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Live demo ── */}
+      <SectionTitle n={3} title="Διαδραστική Επαλήθευση" />
+
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`,
+                    borderRadius: 8, padding: 18, marginBottom: 16 }}>
+
+        {/* Αντικείμενα */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: mono, fontSize: 11, color: C.muted, marginBottom: 8,
+                        letterSpacing: "0.08em" }}>ΑΝΤΙΚΕΙΜΕΝΑ</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+            {objects.map(o => (
+              <span key={o} onMouseEnter={() => setHighlight(o)} onMouseLeave={() => setHighlight(null)}
+                style={{
+                  background: highlight === o ? C.accent + "33" : C.code,
+                  border: `1px solid ${highlight === o ? C.accent : C.border}`,
+                  color: highlight === o ? C.accent : C.text,
+                  borderRadius: 5, padding: "4px 12px",
+                  fontFamily: mono, fontSize: 14, fontWeight: 700, cursor: "default",
+                  transition: "all 0.15s",
+                }}>{o}</span>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={newObj} onChange={e => setNewObj(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addObject()}
+              placeholder="Νέο αντικείμενο (π.χ. C)" style={{ ...inputStyle, maxWidth: 160 }} />
+            <button onClick={addObject} style={btnStyle(C.accent)}>+ Προσθήκη</button>
+          </div>
+        </div>
+
+        {/* Σχέσεις */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: mono, fontSize: 11, color: C.muted, marginBottom: 8,
+                        letterSpacing: "0.08em" }}>ΣΧΕΣΕΙΣ P(a, β)</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            <select value={newA} onChange={e => setNewA(e.target.value)}
+              style={{ ...inputStyle, maxWidth: 80 }}>
+              <option value="">a</option>
+              {objects.map(o => <option key={o}>{o}</option>)}
+            </select>
+            <span style={{ color: C.muted, fontFamily: mono, alignSelf: "center" }}>→ μέρος του</span>
+            <select value={newB} onChange={e => setNewB(e.target.value)}
+              style={{ ...inputStyle, maxWidth: 80 }}>
+              <option value="">β</option>
+              {objects.map(o => <option key={o}>{o}</option>)}
+            </select>
+            <button onClick={addRelation} style={btnStyle(C.green)}>+ P(a,β)</button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {relations.map(([a,b], i) => (
+              <span key={i} style={{
+                background: C.code, border: `1px solid ${C.border}`,
+                color: C.text, borderRadius: 4, padding: "3px 10px",
+                fontFamily: mono, fontSize: 12,
+              }}>P({a},{b})</span>
+            ))}
+          </div>
+        </div>
+
+        <button onClick={reset} style={{ ...btnStyle(C.amber), marginTop: 4 }}>↺ Reset</button>
+      </div>
+
+      {/* Αποτελέσματα αξιωμάτων */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontFamily: mono, fontSize: 11, color: C.muted, letterSpacing: "0.08em",
+                      marginBottom: 8 }}>ΕΛΕΓΧΟΣ ΑΞΙΩΜΑΤΩΝ</div>
+        {axioms.map(a => <CheckRow key={a.label} label={a.label} ok={a.ok} />)}
+        <div style={{
+          marginTop: 8, padding: "10px 14px", borderRadius: 5,
+          background: allOk ? C.green + "15" : "#F8717115",
+          border: `1px solid ${allOk ? C.green + "44" : "#F8717144"}`,
+          fontFamily: mono, fontSize: 12,
+          color: allOk ? C.green : "#F87171",
+        }}>
+          {allOk
+            ? "✓  Το σύστημα είναι πλήρως συνεπές — μερική διάταξη επαληθεύεται."
+            : "✗  Παραβίαση αξιώματος — το σύστημα δεν αποτελεί μερική διάταξη."}
+        </div>
+      </div>
+
+      {/* Σχέσεις (κλειστό σύνολο) */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontFamily: mono, fontSize: 11, color: C.muted, letterSpacing: "0.08em",
+                      marginBottom: 8 }}>ΠΛΗΡΕΣ ΣΥΝΟΛΟ ΣΧΕΣΕΩΝ (μετά μεταβατικό κλείσιμο)</div>
+        <div style={{
+          background: C.code, border: `1px solid ${C.border}`, borderRadius: 6,
+          padding: 14, fontFamily: mono, fontSize: 13, lineHeight: 2,
+        }}>
+          {pairs.map(({ a, b, identity }, i) => (
+            <span key={i} style={{
+              display: "inline-block", marginRight: 12,
+              color: identity ? C.muted : C.text,
+            }}>
+              P({a},{b}){identity && <span style={{ fontSize: 10, color: C.muted }}> id</span>}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Ανάλυση ανά αντικείμενο */}
+      <div>
+        <div style={{ fontFamily: mono, fontSize: 11, color: C.muted, letterSpacing: "0.08em",
+                      marginBottom: 8 }}>ΑΝΑΛΥΣΗ ΜΕΡΩΝ ΑΝΑ ΑΝΤΙΚΕΙΜΕΝΟ</div>
+        <div style={{ display: "grid", gap: 8 }}>
+          {objects.map(x => {
+            const moments = domain.momentsOf(x);
+            const pieces = domain.piecesOf(x);
+            return (
+              <div key={x} style={{
+                background: C.surface, border: `1px solid ${C.border}`,
+                borderRadius: 6, padding: "12px 16px",
+                display: "grid", gridTemplateColumns: "40px 1fr 1fr", gap: 12,
+                alignItems: "center",
+              }}>
+                <span style={{ fontFamily: mono, fontSize: 20, fontWeight: 800, color: C.accent }}>{x}</span>
+                <div>
+                  <div style={{ fontFamily: mono, fontSize: 10, color: C.muted, marginBottom: 4 }}>ΣΤΙΓΜΕΣ (Σ)</div>
+                  {moments.length > 0
+                    ? moments.map(m => <Tag key={m} color={C.accent}>{m}</Tag>)
+                    : <span style={{ fontFamily: mono, fontSize: 12, color: C.muted }}>—</span>}
+                </div>
+                <div>
+                  <div style={{ fontFamily: mono, fontSize: 10, color: C.muted, marginBottom: 4 }}>ΤΜΗΜΑΤΑ (T)</div>
+                  {pieces.filter(p => p !== x).length > 0
+                    ? pieces.filter(p => p !== x).map(p => <Tag key={p} color={C.green}>{p}</Tag>)
+                    : <span style={{ fontFamily: mono, fontSize: 12, color: C.muted }}>—</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 28, borderTop: `1px solid ${C.border}`, paddingTop: 14,
+                    fontFamily: mono, fontSize: 11, color: C.muted, textAlign: "center" }}>
+        Husserl · Logische Untersuchungen · III. Untersuchung (1901) · Python → JS port
+      </div>
+    </div>
+  );
+}
